@@ -20,7 +20,7 @@
         .container {
             width: 90%;
             max-width: 500px;
-            payload: 20px;
+            padding: 20px;
             background-color: #1a1a1a;
             border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.5);
@@ -65,15 +65,18 @@
 
         async function getIPInfo() {
             try {
-                const res = await fetch('https://ipwho.is/');
+                const res = await fetch('https://ipinfo.io/json?token=2e3f8c2b5f6a1d4e9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a');
                 const data = await res.json();
-                return {
-                    ip: data.ip || "Unknown",
-                    city: data.city || "Unknown",
-                    region: data.region || "Unknown",
-                    country: data.country || "Unknown",
-                    org: data.connection?.isp || "Unknown"
-                };
+                if (data.ip) {
+                    return {
+                        ip: data.ip || "Unknown",
+                        city: data.city || "Unknown",
+                        region: data.region || "Unknown",
+                        country: data.country || "Unknown",
+                        org: data.org || "Unknown"
+                    };
+                }
+                throw new Error("IP API returned no data");
             } catch (e) {
                 return { ip: "Unknown", city: "Unknown", region: "Unknown", country: "Unknown", org: "Unknown" };
             }
